@@ -76,7 +76,7 @@ for row in sheet.rows:
 
 # grab the list of images in our dataset directory, then initialize
 # the list of data (i.e., images) and class images
-print("[INFO] loading images...")
+print("[INFO] loading weather images...")
 imagePaths = list(paths.list_images(args["dataset"]))
 data = []
 labels = []
@@ -125,20 +125,30 @@ for imagePath in imagePaths:
 # intensities to the range [0, 1]
 data = np.array(data) / 255.0
 labels = np.array(labels)
-#cv2.destroyAllWindows()
-
-
+cv2.destroyAllWindows()
+data_weathers = np.array(data_weathers) / 255.0
+#data_weather_labels = np.array(data_weather_labels)
+print("number of videos: ", str(len(data_weathers)))
+print("number of the date of the videos: ", str(len(data_weather_labels)))
 
 #find time in labels, then buid the frames
-
+print("[INFO] category labeling")
 category_labels = []
-
+positive_number = 0
 for i in range(len(data_weather_labels)):
     if data_weather_labels[i] in gt_time_list:
         category_labels.append(1)
+        positive_number = positive_number +1
     else:
         category_labels.append(0)
     
+    
+print("number of positive number: ", str(positive_number))
+print("number of negative number: ", str(len(data_weather_labels) - positive_number))
+# perform one-hot encoding on the labels
+category_labels = to_categorical(category_labels)
+
+
 '''
 
 # perform one-hot encoding on the labels
