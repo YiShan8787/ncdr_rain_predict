@@ -53,6 +53,7 @@ INIT_LR = 1e-3
 EPOCHS = 25
 BS = 8
 
+random_st = 42
 
 '''
 need to be modify
@@ -146,7 +147,12 @@ for i in range(len(data_weather_labels)):
 print("number of positive number: ", str(positive_number))
 print("number of negative number: ", str(len(data_weather_labels) - positive_number))
 # perform one-hot encoding on the labels
+print("[INFO] one-hot")
 category_labels = to_categorical(category_labels)
+
+
+print("[INFO] train-test split")
+
 
 
 '''
