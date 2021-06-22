@@ -88,8 +88,11 @@ data_weathers = []
 tmp_weathers = []
 
 # 裁切區域的 x 與 y 座標（左上角）
-x = 100
-y = 63
+x = 220
+y = 163
+
+y_len = 340
+x_len = 210
 
 # loop over the image paths
 for imagePath in imagePaths:
@@ -100,11 +103,12 @@ for imagePath in imagePaths:
     image = cv2.imread(imagePath)
     
     #image = cv2.resize(image, (224, 224))
-    image = image[y:,:]
+    image = image[y:y+y_len,x:x+x_len]
+    #print(image.shape)
     # update the data and labels lists, respectively
     
-    #cv2.imshow(label, image)
-    #cv2.waitKey()
+    cv2.imshow(label, image)
+    cv2.waitKey()
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     data.append(image)
     labels.append(label)
