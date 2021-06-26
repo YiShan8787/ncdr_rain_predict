@@ -10,7 +10,10 @@ from matplotlib import pyplot as plt
 import math
 from scipy import interpolate
 
-station_path = 'E:\\tech\\ncdr\\ncdr_rain_predict\\data\\station_data'
+station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_data'
+
+max_tmp = 40
+min_tmp = 0
 
 def mkdir(create_path):
     #判斷目錄是否存在
@@ -31,16 +34,16 @@ def mkdir(create_path):
 
 for year in os.listdir(station_path):
     #print(file)
-    year_dir = station_path + "\\" + year
+    year_dir = station_path + "/" + year
     for month in os.listdir(year_dir):
-        month_dir = year_dir + "\\" + month
+        month_dir = year_dir + "/" + month
         for date in os.listdir(month_dir):
-            date_dir = month_dir + "\\" + date
+            date_dir = month_dir + "/" + date
             for date_file in os.listdir(date_dir):
                 if not date_file.endswith(".txt"):
                     break
                 file_name = date_file
-                date_txt = date_dir + "\\" + date_file
+                date_txt = date_dir + "/" + date_file
                 #print(date_txt)
                 f = open(date_txt)
                 
@@ -133,12 +136,17 @@ for year in os.listdir(station_path):
                                           (xx, yy),
                                              method='cubic')
                 
-                mkdir(date_dir + "\\temp_img")
-                mkdir(date_dir + "\\temp_npy")
+                inter_temps_arr[inter_temps_arr>max_tmp] = max_tmp
+                inter_temps_arr[inter_temps_arr<min_tmp] = min_tmp
+                inter_temps_arr = inter_temps_arr/max_tmp
+                
+                
+                mkdir(date_dir + "/temp_img")
+                mkdir(date_dir + "/temp_npy")
                 
                 plt.imshow(inter_temps_arr,interpolation='nearest')
                 plt.colorbar()
-                plt.savefig(date_dir +"\\temp_img\\" +  date_file.split(".")[0] +  ".png")
+                plt.savefig(date_dir +"/temp_img/" +  date_file.split(".")[0] +  ".png")
                 plt.show()
                 
-                np.save(date_dir +"\\temp_npy\\" + date_file.split(".")[0] + "_temps_arr",inter_temps_arr)
+                np.save(date_dir +"/temp_npy/" + date_file.split(".")[0] + "_temps_arr",inter_temps_arr)
