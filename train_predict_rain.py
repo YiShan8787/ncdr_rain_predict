@@ -38,8 +38,8 @@ from openpyxl import load_workbook
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("-d", "--dataset", required=False,
-	help="path to input dataset", default = "E:\\tech\\ncdr\\ncdr_rain_predict\\data\\weather_image")
+ap.add_argument("-d", "--weather_dataset", required=False,
+	help="path to input dataset", default = "/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/weather_image")
 ap.add_argument("-p", "--plot", type=str, default="loss_acc.png",
 	help="path to output loss/accuracy plot")
 ap.add_argument("-m", "--model", type=str, default="rain_predict.model",
@@ -74,11 +74,12 @@ for row in sheet.rows:
     #for cell in row:
     #    print(cell.value)
 
-
+del wb
+del sheet
 # grab the list of images in our dataset directory, then initialize
 # the list of data (i.e., images) and class images
 print("[INFO] loading weather images...")
-imagePaths = list(paths.list_images(args["dataset"]))
+imagePaths = list(paths.list_images(args["weather_dataset"]))
 data = []
 labels = []
 
@@ -97,22 +98,29 @@ x_len = 210
 # loop over the image paths
 for imagePath in imagePaths:
     # extract the class label from the filename
+    #print(imagePath)
     label = imagePath.split(os.path.sep)[-1]
     # load the image, swap color channels, and resize it to be a fixed
     # 224x224 pixels while ignoring aspect ratio
     image = cv2.imread(imagePath)
-    
+    #if isinstance(image,type(None)):
+    #    print("error")
+    #print(type(image))
     #image = cv2.resize(image, (224, 224))
     image = image[y:y+y_len,x:x+x_len]
     #print(image.shape)
     # update the data and labels lists, respectively
-    
-    cv2.imshow(label, image)
+    #if time == 0:
+     #   cv2.imshow(label, image)
     cv2.waitKey()
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     data.append(image)
     labels.append(label)
     
+    if label[3:11] not in data_weather_labels:
+        data_weather_labels.append(label[3:11])
+    
+    '''
     if last_label == None:
         last_label = label[3:11]
         data_weather_labels.append(last_label)
@@ -124,17 +132,21 @@ for imagePath in imagePaths:
         data_weathers.append(tmp_weathers)
         tmp_weathers = []
         last_label = None
-        
+    '''
         
 # convert the data and labels to NumPy arrays while scaling the pixel
 # intensities to the range [0, 1]
+data_weathers = np.reshape(data, (-1,4,340,210,3))
 data = np.array(data) / 255.0
 labels = np.array(labels)
 cv2.destroyAllWindows()
 data_weathers = np.array(data_weathers) / 255.0
 #data_weather_labels = np.array(data_weather_labels)
 print("number of videos: ", str(len(data_weathers)))
-print("number of the date of the videos: ", str(len(data_weather_labels)))
+print("number of the date of the videos: ", str(data_weathers.shape[0]))
+
+del labels
+del data
 
 #find time in labels, then buid the frames
 print("[INFO] category labeling")
@@ -154,6 +166,73 @@ print("number of negative number: ", str(len(data_weather_labels) - positive_num
 print("[INFO] one-hot")
 category_labels = to_categorical(category_labels)
 
+#test_shape = np.load('/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_data/2014/06/20140601/huminity_npy/2014060100_huminity_arr.npy')
+#print(test_shape.shape)
+
+print("[INFO] loading station data(huminity)")
+
+station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_data'
+
+#data_station_huminity =[]
+tmp_huminitys = []
+
+
+for year in os.listdir(station_path):
+    #print(file)
+    year_dir = station_path + "/" + year
+    for month in os.listdir(year_dir):
+        month_dir = year_dir + "/" + month
+        for date in os.listdir(month_dir):
+            date_dir = month_dir + "/" + date + "/huminity_npy"
+            for date_file in os.listdir(date_dir):
+                if not date_file.endswith(".npy"):
+                    break
+                file_name = date_file
+                date_txt = date_dir + "/" + date_file
+                #print(date_txt)
+                f = np.load(date_txt)
+                f[f == np.nan] = 0
+                
+                tmp_huminitys.append(f)
+            #data_station_huminity = np.reshape()
+                #print(f.shape)
+data_station_huminity = np.array(tmp_huminitys)
+data_station_huminity = np.reshape(data_station_huminity,(-1,24,210,340))
+del tmp_huminitys
+print("number of videos: ", data_station_huminity.shape[0])
+
+print("[INFO] loading station data(temperature)")
+
+station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_data'
+
+#data_station_huminity =[]
+tmp_temps = []
+
+
+for year in os.listdir(station_path):
+    #print(file)
+    year_dir = station_path + "/" + year
+    for month in os.listdir(year_dir):
+        month_dir = year_dir + "/" + month
+        for date in os.listdir(month_dir):
+            date_dir = month_dir + "/" + date + "/temp_npy"
+            for date_file in os.listdir(date_dir):
+                if not date_file.endswith(".npy"):
+                    break
+                file_name = date_file
+                date_txt = date_dir + "/" + date_file
+                #print(date_txt)
+                f = np.load(date_txt)
+                f[f == np.nan] = 0
+                
+                
+                tmp_temps.append(f)
+            #data_station_huminity = np.reshape()
+                #print(f.shape)
+data_station_temperature = np.array(tmp_temps)
+data_station_temperature = np.reshape(data_station_temperature,(-1,24,210,340))
+print("number of videos: ", data_station_temperature.shape[0])
+del tmp_temps
 
 print("[INFO] train-test split")
 
