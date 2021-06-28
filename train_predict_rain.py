@@ -6,7 +6,7 @@ Created on Wed Jun 16 11:27:15 2021
 """
 
 # import the necessary packages
-'''
+
 from tensorflow.keras.applications import VGG16
 from tensorflow.keras.layers import AveragePooling2D
 from tensorflow.keras.layers import Dropout
@@ -15,7 +15,13 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 
-'''
+from tensorflow.keras.layers import GlobalAveragePooling2D
+from tensorflow.keras.layers import concatenate
+
+from tensorflow.keras.layers import LSTM
+from tensorflow.keras.layers import TimeDistributed
+
+
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.optimizers import Adam
@@ -236,22 +242,111 @@ del tmp_temps
 
 print("[INFO] train-test split")
 
+(train_weather_X, test_weather_X, train_weather_Y, test_weather_Y) = train_test_split(data_weathers, category_labels,
+	test_size=0.20, stratify=category_labels, random_state=random_state)
 
+(train_temp_X, test_temp_X, train_temp_Y, test_temp_Y) = train_test_split(data_station_temperature, category_labels,
+	test_size=0.20, stratify=category_labels, random_state=random_state)
 
+del  train_temp_Y
+del  test_temp_Y
+
+(train_huminity_X, test_huminity_X, train_huminity_Y, test_huminity_Y) = train_test_split(data_station_huminity, category_labels,
+	test_size=0.20, stratify=category_labels, random_state=random_state)
+
+del train_huminity_Y
+del test_huminity_Y
+
+print("[INFO] build model")
+
+weather_frames, weather_channels, station_frames, station_channels, rows, columns = 4,3, 24, 3,210,340
+
+#encode model
+
+weather_video = Input(shape=(weather_frames,
+                     rows,
+                     columns,
+                     weather_channels))
+
+temp_video = Input(shape=(station_frames,
+                     rows,
+                     columns,
+                     station_channels))
+
+huminity_video = Input(shape=(station_frames,
+                     rows,
+                     columns,
+                     station_channels))
+
+#vgg model
+
+vgg_weather = VGG16(input_shape=(rows,
+                              columns,
+                              weather_channels),
+                 weights="imagenet",
+                 include_top=False)
+vgg_weather.trainable = False
+
+vgg_temp = VGG16(input_shape=(rows,
+                              columns,
+                              station_channels),
+                 weights="imagenet",
+                 include_top=False)
+vgg_temp.trainable = False
+
+vgg_huminity = VGG16(input_shape=(rows,
+                              columns,
+                              station_channels),
+                 weights="imagenet",
+                 include_top=False)
+vgg_huminity.trainable = False
+
+#cnn out
+
+cnn_out_weather = GlobalAveragePooling2D()(vgg_weather.output)
+
+cnn_out_temp = GlobalAveragePooling2D()(vgg_temp.output)
+
+cnn_out_huminity = GlobalAveragePooling2D()(vgg_huminity.output)
+
+#cnn model 
+
+cnn_weather = Model(vgg_weather.input, cnn_out_weather)
+
+cnn_temp = Model(vgg_temp.input, cnn_out_temp)
+
+cnn_huminity = Model(vgg_huminity.input, cnn_out_huminity)
+
+#encode frame
+
+weather_encoded_frames = TimeDistributed(cnn_weather)(weather_video)
+
+temp_encoded_frames = TimeDistributed(cnn_temp)(temp_video)
+
+huminity_encoded_frames = TimeDistributed(cnn_huminity)(huminity_video)
+
+# LSTM
+
+weather_encoded_sequence = LSTM(256)(weather_encoded_frames)
+
+temp_encoded_sequence = LSTM(256)(temp_encoded_frames)
+
+huminity_encoded_sequence = LSTM(256)(huminity_encoded_frames)
+
+#concate
+
+encoded_sequence = concatenate([weather_encoded_sequence, temp_encoded_sequence, huminity_encoded_sequence])
+
+# dense layer
+
+hidden_layer = Dense(1024, activation="relu")(encoded_sequence)
+outputs = Dense(2, activation="softmax")(hidden_layer)
+
+# build all model
+
+model = Model(inputs = [weather_video, temp_video, huminity_video], outputs= [outputs])
+model.summary()
 '''
-
-# perform one-hot encoding on the labels
-lb = LabelBinarizer()
-labels = lb.fit_transform(labels)
-labels = to_categorical(labels)
-# partition the data into training and testing splits using 80% of
-# the data for training and the remaining 20% for testing
-(trainX, testX, trainY, testY) = train_test_split(data, labels,
-	test_size=0.20, stratify=labels, random_state=42)
-# initialize the training data augmentation object
-trainAug = ImageDataGenerator(
-	rotation_range=15,
-	fill_mode="nearest")
 
 
 # load the VGG16 network, ensuring the head FC layer sets are left
