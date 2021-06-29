@@ -9,6 +9,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import math
 from scipy import interpolate
+import cv2
 
 station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_data'
 
@@ -142,5 +143,7 @@ for year in os.listdir(station_path):
                 plt.colorbar()
                 plt.savefig(date_dir +"/huminity_img/" +  date_file.split(".")[0] +  ".png")
                 plt.show()
+
+                gray_three_channel = cv2.cvtColor(inter_huminity_arr.astype('float32'),cv2.COLOR_GRAY2RGB)
                 
-                np.save(date_dir +"/huminity_npy/" + date_file.split(".")[0] + "_huminity_arr",inter_huminity_arr)
+                np.save(date_dir +"/huminity_npy/" + date_file.split(".")[0] + "_huminity_arr",gray_three_channel)
