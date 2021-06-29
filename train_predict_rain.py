@@ -31,6 +31,7 @@ from sklearn.preprocessing import LabelBinarizer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import KFold
 
 from imutils import paths
 import matplotlib.pyplot as plt
@@ -58,6 +59,7 @@ args = vars(ap.parse_args())
 INIT_LR = 1e-3
 EPOCHS = 25
 BS = 8
+num_folds = 5
 
 random_st = 42
 
@@ -203,7 +205,7 @@ for year in os.listdir(station_path):
             #data_station_huminity = np.reshape()
                 #print(f.shape)
 data_station_huminity = np.array(tmp_huminitys)
-data_station_huminity = np.reshape(data_station_huminity,(-1,24,210,340))
+data_station_huminity = np.reshape(data_station_huminity,(-1,24,210,340,3))
 del tmp_huminitys
 print("number of videos: ", data_station_huminity.shape[0])
 
@@ -236,7 +238,7 @@ for year in os.listdir(station_path):
             #data_station_huminity = np.reshape()
                 #print(f.shape)
 data_station_temperature = np.array(tmp_temps)
-data_station_temperature = np.reshape(data_station_temperature,(-1,24,210,340))
+data_station_temperature = np.reshape(data_station_temperature,(-1,24,210,340,3))
 print("number of videos: ", data_station_temperature.shape[0])
 del tmp_temps
 
@@ -346,28 +348,114 @@ outputs = Dense(2, activation="softmax")(hidden_layer)
 
 model = Model(inputs = [weather_video, temp_video, huminity_video], outputs= [outputs])
 model.summary()
+
+# compile our model
+print("[INFO] compiling model...")
+opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
+model.compile(loss="binary_crossentropy", optimizer=opt,
+	metrics=["accuracy"])
+# train the head of the network
+print("[INFO] training head...")
+
+# Define per-fold score containers
+acc_per_fold = []
+loss_per_fold = []
+
+# Merge inputs and targets
+#inputs_set = np.concatenate((train_weather_X, test_weather_X), axis=0)
+#targets_set = np.concatenate((train_weather_Y, test_weather_Y), axis=0)
+
+# Define the K-fold Cross Validator
+kfold = KFold(n_splits=num_folds, shuffle=True)
+
+# K-fold Cross Validation model evaluation
+fold_no = 1
+
+for train_index, test_index in skf.split(train_weather_X, train_weather_Y):
+    print("TRAIN:", train_index, "TEST:", test_index)
+
+    X_weather_train, X_weather_test = train_weather_X[train_index], train_weather_X[test_index]
+    X_temp_train, X_temp_test = train_temp_X[train_index], train_temp_X[test_index]
+    X_huminity_train, X_huminity_test = train_huminity_X[train_index], train_huminity_X[test_index]
+
+    Y_train, Y_test = train_weather_Y[train_index], train_weather_Y[test_index]
+
+    print('------------------------------------------------------------------------')
+    print(f'Training for fold {fold_no} ...')
+
+    # Fit data to model
+    history = model.fit([X_weather_train, X_temp_train, X_huminity_train], Y_train,
+                batch_size=BS,
+                epochs=EPOCHS,
+                verbose=1)
+
+    # Generate generalization metrics
+    scores = model.evaluate(inputs[test], targets[test], verbose=0)
+    print(f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%')
+    acc_per_fold.append(scores[1] * 100)
+    loss_per_fold.append(scores[0])
+
+    # Increase fold number
+    fold_no = fold_no + 1
+
+# == Provide average scores ==
+print('------------------------------------------------------------------------')
+print('Score per fold')
+for i in range(0, len(acc_per_fold)):
+  print('------------------------------------------------------------------------')
+  print(f'> Fold {i+1} - Loss: {loss_per_fold[i]} - Accuracy: {acc_per_fold[i]}%')
+print('------------------------------------------------------------------------')
+print('Average scores for all folds:')
+print(f'> Accuracy: {np.mean(acc_per_fold)} (+- {np.std(acc_per_fold)})')
+print(f'> Loss: {np.mean(loss_per_fold)}')
+print('------------------------------------------------------------------------')
+
+
+# make predictions on the testing set
+print("[INFO] evaluating network...")
+predIdxs = model.predict([test_weather_X, test_temp_X, test_huminity_X], batch_size=BS)
+# for each image in the testing set we need to find the index of the
+# label with corresponding largest predicted probability
+predIdxs = np.argmax(predIdxs, axis=1)
+# show a nicely formatted classification report
+print(classification_report(test_weather_Y.argmax(axis=1), predIdxs,
+	target_names=lb.classes_))
+
+# compute the confusion matrix and and use it to derive the raw
+# accuracy, sensitivity, and specificity
+cm = confusion_matrix(test_weather_Y.argmax(axis=1), predIdxs)
+total = sum(sum(cm))
+acc = (cm[0, 0] + cm[1, 1]) / total
+sensitivity = cm[0, 0] / (cm[0, 0] + cm[0, 1])
+specificity = cm[1, 1] / (cm[1, 0] + cm[1, 1])
+# show the confusion matrix, accuracy, sensitivity, and specificity
+print(cm)
+print("acc: {:.4f}".format(acc))
+print("sensitivity: {:.4f}".format(sensitivity))
+print("specificity: {:.4f}".format(specificity))
+
+
+
+# plot the training loss and accuracy
+N = EPOCHS
+plt.style.use("ggplot")
+plt.figure()
+plt.plot(np.arange(0, N), history.history["loss"], label="train_loss")
+plt.plot(np.arange(0, N), history.history["val_loss"], label="val_loss")
+plt.plot(np.arange(0, N), history.history["accuracy"], label="train_acc")
+plt.plot(np.arange(0, N), history.history["val_accuracy"], label="val_acc")
+plt.title("Training Loss and Accuracy on COVID-19 Dataset")
+plt.xlabel("Epoch #")
+plt.ylabel("Loss/Accuracy")
+plt.legend(loc="lower left")
+plt.savefig(args["plot"])
+
+
+# serialize the model to disk
+print("[INFO] saving COVID-19 detector model...")
+model.save(args["model"], save_format="h5")
+
 '''
-
-
-# load the VGG16 network, ensuring the head FC layer sets are left
-# off
-baseModel = VGG16(weights="imagenet", include_top=False,
-	input_tensor=Input(shape=(224, 224, 3)))
-# construct the head of the model that will be placed on top of the
-# the base model
-headModel = baseModel.output
-headModel = AveragePooling2D(pool_size=(4, 4))(headModel)
-headModel = Flatten(name="flatten")(headModel)
-headModel = Dense(64, activation="relu")(headModel)
-headModel = Dropout(0.5)(headModel)
-headModel = Dense(2, activation="softmax")(headModel)
-# place the head FC model on top of the base model (this will become
-# the actual model we will train)
-model = Model(inputs=baseModel.input, outputs=headModel)
-# loop over all layers in the base model and freeze them so they will
-# *not* be updated during the first training process
-for layer in baseModel.layers:
-	layer.trainable = False
     
     
 # compile our model
