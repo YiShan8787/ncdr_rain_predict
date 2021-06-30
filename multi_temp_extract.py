@@ -150,6 +150,7 @@ for year in os.listdir(station_path):
                 plt.savefig(date_dir +"/temp_img/" +  date_file.split(".")[0] +  ".png")
                 plt.show()
                 
+                np.nan_to_num(inter_temps_arr, copy=False)
                 gray_three_channel = cv2.cvtColor(inter_temps_arr.astype('float32'),cv2.COLOR_GRAY2RGB)
                 
                 

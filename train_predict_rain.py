@@ -42,7 +42,7 @@ import os
 
 from openpyxl import load_workbook
 
-
+#os.environ["CUDA_VISIBLE_DEVICES"] = "" # use cpu
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-d", "--weather_dataset", required=False,
@@ -58,7 +58,7 @@ args = vars(ap.parse_args())
 # and batch size
 INIT_LR = 1e-3
 EPOCHS = 25
-BS = 8
+BS = 2
 num_folds = 5
 
 random_st = 42
@@ -199,7 +199,7 @@ for year in os.listdir(station_path):
                 date_txt = date_dir + "/" + date_file
                 #print(date_txt)
                 f = np.load(date_txt)
-                f[f == np.nan] = 0
+                #f[f == np.nan] = 0
                 
                 tmp_huminitys.append(f)
             #data_station_huminity = np.reshape()
@@ -231,7 +231,7 @@ for year in os.listdir(station_path):
                 date_txt = date_dir + "/" + date_file
                 #print(date_txt)
                 f = np.load(date_txt)
-                f[f == np.nan] = 0
+                #f[f == np.nan] = 0
                 
                 
                 tmp_temps.append(f)
@@ -275,8 +275,8 @@ weather_frames, weather_channels, station_frames, station_channels, rows, column
 #encode model
 
 weather_video = Input(shape=(weather_frames,
-                     rows,
                      columns,
+                     rows,
                      weather_channels))
 
 temp_video = Input(shape=(station_frames,
@@ -380,7 +380,7 @@ kfold = KFold(n_splits=num_folds, shuffle=True)
 # K-fold Cross Validation model evaluation
 fold_no = 1
 
-for train_index, test_index in skf.split(train_weather_X, train_weather_Y):
+for train_index, test_index in kfold.split(train_weather_X, train_weather_Y):
     print("TRAIN:", train_index, "TEST:", test_index)
 
     X_weather_train, X_weather_test = train_weather_X[train_index], train_weather_X[test_index]

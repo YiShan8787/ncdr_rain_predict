@@ -144,6 +144,8 @@ for year in os.listdir(station_path):
                 plt.savefig(date_dir +"/huminity_img/" +  date_file.split(".")[0] +  ".png")
                 plt.show()
 
+                #inter_huminity_arr[inter_huminity_arr == np.nan] = 0
+                np.nan_to_num(inter_huminity_arr, copy=False)
                 gray_three_channel = cv2.cvtColor(inter_huminity_arr.astype('float32'),cv2.COLOR_GRAY2RGB)
                 
                 np.save(date_dir +"/huminity_npy/" + date_file.split(".")[0] + "_huminity_arr",gray_three_channel)
