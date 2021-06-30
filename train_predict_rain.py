@@ -400,7 +400,7 @@ for train_index, test_index in kfold.split(train_weather_X, train_weather_Y):
                 verbose=1)
 
     # Generate generalization metrics
-    scores = model.evaluate(inputs[test], targets[test], verbose=0)
+    scores = model.evaluate([X_weather_test, X_temp_test, X_huminity_test], train_weather_Y[test_index], verbose=0)
     print(f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%')
     acc_per_fold.append(scores[1] * 100)
     loss_per_fold.append(scores[0])
