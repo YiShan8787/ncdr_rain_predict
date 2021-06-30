@@ -57,7 +57,7 @@ args = vars(ap.parse_args())
 # initialize the initial learning rate, number of epochs to train for,
 # and batch size
 INIT_LR = 1e-3
-EPOCHS = 25
+EPOCHS = 10
 BS = 2
 num_folds = 5
 
@@ -245,13 +245,14 @@ del tmp_temps
 print("[INFO] train-test split")
 
 (train_weather_X, test_weather_X, train_weather_Y, test_weather_Y) = train_test_split(data_weathers, category_labels,
-	test_size=0.20, stratify=category_labels, random_state=random_st)
+	test_size=0.24, stratify=category_labels, random_state=random_st)
 
+print("train_weather shape: ", train_weather_X.shape)
 del data_weathers
 print("finish split weather")
 
 (train_temp_X, test_temp_X, train_temp_Y, test_temp_Y) = train_test_split(data_station_temperature, category_labels,
-	test_size=0.20, stratify=category_labels, random_state=random_st)
+	test_size=0.24, stratify=category_labels, random_state=random_st)
 
 del  train_temp_Y
 del  test_temp_Y
@@ -260,7 +261,7 @@ del data_station_temperature
 print("finish split temp")
 
 (train_huminity_X, test_huminity_X, train_huminity_Y, test_huminity_Y) = train_test_split(data_station_huminity, category_labels,
-	test_size=0.20, stratify=category_labels, random_state=random_st)
+	test_size=0.24, stratify=category_labels, random_state=random_st)
 
 del train_huminity_Y
 del test_huminity_Y
