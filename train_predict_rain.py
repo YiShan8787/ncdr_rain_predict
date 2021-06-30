@@ -49,15 +49,15 @@ ap.add_argument("-d", "--weather_dataset", required=False,
 	help="path to input dataset", default = "/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/weather_image")
 ap.add_argument("-p", "--plot", type=str, default="loss_acc.png",
 	help="path to output loss/accuracy plot")
-ap.add_argument("-m", "--model", type=str, default="rain_predict.model",
+ap.add_argument("-m", "--model", type=str, default="rain_predict.h5",
 	help="path to output loss/accuracy plot")
-ap.add_argument("-gt", "--gt", type=str, default="data/gt/south.xlsx",
+ap.add_argument("-gt", "--gt", type=str, default="data/gt/middle.xlsx",
 	help="gt for the data")
 args = vars(ap.parse_args())
 # initialize the initial learning rate, number of epochs to train for,
 # and batch size
 INIT_LR = 1e-3
-EPOCHS = 5
+EPOCHS = 2
 BS = 1
 num_folds = 3
 
@@ -146,14 +146,14 @@ for imagePath in imagePaths:
 # intensities to the range [0, 1]
 data_weathers = np.reshape(data, (-1,4,340,210,3))
 data = np.array(data) / 255.0
-labels = np.array(labels)
+#labels = np.array(labels)
 cv2.destroyAllWindows()
 data_weathers = np.array(data_weathers) / 255.0
 #data_weather_labels = np.array(data_weather_labels)
 print("number of videos: ", str(len(data_weathers)))
 print("number of the date of the videos: ", str(data_weathers.shape[0]))
 
-del labels
+#del labels
 del data
 
 #find time in labels, then buid the frames
@@ -244,9 +244,12 @@ del tmp_temps
 
 print("[INFO] train-test split")
 
-(train_weather_X, test_weather_X, train_weather_Y, test_weather_Y) = train_test_split(data_weathers, category_labels,
+(train_weather_X, test_weather_X, train_weather_Y, test_weather_Y, index_train, index_test) = train_test_split(data_weathers, category_labels, range(data_weathers.shape[0]),
 	test_size=0.20, stratify=category_labels, random_state=random_st)
-
+#for i in range(len(train_weather_Y)):
+#    if np.argmax(train_weather_Y[i]) == 1:
+ #       print("there is positive set in training set")
+  #      break
 print("train_weather shape: ", train_weather_X.shape)
 del data_weathers
 print("finish split weather")
@@ -409,26 +412,44 @@ for train_index, test_index in kfold.split(train_weather_X, train_weather_Y):
     fold_no = fold_no + 1
 
 # == Provide average scores ==
+f_log = open("demofile3.txt", "w")
 print('------------------------------------------------------------------------')
+f_log.write('------------------------------------------------------------------------')
 print('Score per fold')
+f_log.write('Score per fold')
 for i in range(0, len(acc_per_fold)):
   print('------------------------------------------------------------------------')
+  f_log.write('------------------------------------------------------------------------')
   print(f'> Fold {i+1} - Loss: {loss_per_fold[i]} - Accuracy: {acc_per_fold[i]}%')
+  f_log.write(f'> Fold {i+1} - Loss: {loss_per_fold[i]} - Accuracy: {acc_per_fold[i]}%')
 print('------------------------------------------------------------------------')
 print('Average scores for all folds:')
 print(f'> Accuracy: {np.mean(acc_per_fold)} (+- {np.std(acc_per_fold)})')
 print(f'> Loss: {np.mean(loss_per_fold)}')
 print('------------------------------------------------------------------------')
 
+f_log.write('------------------------------------------------------------------------')
+f_log.write('Average scores for all folds:')
+f_log.write(f'> Accuracy: {np.mean(acc_per_fold)} (+- {np.std(acc_per_fold)})')
+f_log.write(f'> Loss: {np.mean(loss_per_fold)}')
+f_log.write('------------------------------------------------------------------------')
+
 
 # make predictions on the testing set
 print("[INFO] evaluating network...")
+f_log.write("[INFO] evaluating network...")
 predIdxs = model.predict([test_weather_X, test_temp_X, test_huminity_X], batch_size=BS)
 # for each image in the testing set we need to find the index of the
 # label with corresponding largest predicted probability
 predIdxs = np.argmax(predIdxs, axis=1)
 # show a nicely formatted classification report
+#print("test index of true")
+#print(labels[np.where(np.argmax(test_weather_Y, axis=1)==1)])
+#f_log(labels[np.where(np.argmax(test_weather_Y, axis=1)==1)])
 print(classification_report(test_weather_Y.argmax(axis=1), predIdxs,
+	target_names=['False', 'True']))
+
+f_log.write(classification_report(test_weather_Y.argmax(axis=1), predIdxs,
 	target_names=['False', 'True']))
 
 # compute the confusion matrix and and use it to derive the raw
@@ -444,16 +465,22 @@ print("acc: {:.4f}".format(acc))
 print("sensitivity: {:.4f}".format(sensitivity))
 print("specificity: {:.4f}".format(specificity))
 
+#f_log.write(cm.tostring())
+f_log.write("acc: {:.4f}".format(acc))
+f_log.write("sensitivity: {:.4f}".format(sensitivity))
+f_log.write("specificity: {:.4f}".format(specificity))
+
 
 
 # plot the training loss and accuracy
+#print(history.history.keys())
 N = EPOCHS
 plt.style.use("ggplot")
 plt.figure()
 plt.plot(np.arange(0, N), history.history["loss"], label="train_loss")
-plt.plot(np.arange(0, N), history.history["val_loss"], label="val_loss")
-plt.plot(np.arange(0, N), history.history["accuracy"], label="train_acc")
-plt.plot(np.arange(0, N), history.history["val_accuracy"], label="val_acc")
+#plt.plot(np.arange(0, N), history.history["val_loss"], label="val_loss")
+plt.plot(np.arange(0, N), history.history["acc"], label="train_acc")
+#plt.plot(np.arange(0, N), history.history["val_accuracy"], label="val_acc")
 plt.title("Training Loss and Accuracy on COVID-19 Dataset")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss/Accuracy")
@@ -463,8 +490,8 @@ plt.savefig(args["plot"])
 
 # serialize the model to disk
 print("[INFO] saving COVID-19 detector model...")
-model.save(args["model"], save_format="h5")
-
+model.save(args["model"])
+f_log.close()
 '''
     
     
