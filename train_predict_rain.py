@@ -58,7 +58,7 @@ args = vars(ap.parse_args())
 # and batch size
 INIT_LR = 1e-3
 EPOCHS = 10
-BS = 2
+BS = 1
 num_folds = 5
 
 random_st = 42
