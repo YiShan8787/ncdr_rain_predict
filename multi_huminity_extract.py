@@ -16,6 +16,8 @@ station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_da
 max_huminity = 100
 min_huminity = 0
 
+black_list_station = ['C0S730','467620']
+
 def mkdir(create_path):
     #判斷目錄是否存在
     #存在：True
@@ -58,7 +60,8 @@ for year in os.listdir(station_path):
                 for line in f.readlines():
                     line = line.replace("-", " -")
                     parsing = line.split()
-                    
+                    if parsing[0] in black_list_station:
+                        continue
                     # parsing append list
                     stations.append(parsing[0])
                     lons.append(float("{:.2f}".format(float(parsing[1]))))
