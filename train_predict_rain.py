@@ -51,13 +51,13 @@ ap.add_argument("-p", "--plot", type=str, default="loss_acc.png",
 	help="path to output loss/accuracy plot")
 ap.add_argument("-m", "--model", type=str, default="rain_predict.h5",
 	help="path to output loss/accuracy plot")
-ap.add_argument("-gt", "--gt", type=str, default="data/gt/middle.xlsx",
+ap.add_argument("-gt", "--gt", type=str, default="data/gt/south.xlsx",
 	help="gt for the data")
 args = vars(ap.parse_args())
 # initialize the initial learning rate, number of epochs to train for,
 # and batch size
 INIT_LR = 1e-3
-EPOCHS = 2
+EPOCHS = 5
 BS = 1
 num_folds = 3
 
@@ -108,6 +108,10 @@ for imagePath in imagePaths:
     # extract the class label from the filename
     #print(imagePath)
     label = imagePath.split(os.path.sep)[-1]
+    #print(label[-8:-4])
+    time = label[-8:-4]
+    if time == "1200" or time == "1800":
+        continue
     # load the image, swap color channels, and resize it to be a fixed
     # 224x224 pixels while ignoring aspect ratio
     image = cv2.imread(imagePath)
@@ -141,10 +145,11 @@ for imagePath in imagePaths:
         tmp_weathers = []
         last_label = None
     '''
+
         
 # convert the data and labels to NumPy arrays while scaling the pixel
 # intensities to the range [0, 1]
-data_weathers = np.reshape(data, (-1,4,340,210,3))
+data_weathers = np.reshape(data, (-1,2,340,210,3))
 data = np.array(data) / 255.0
 #labels = np.array(labels)
 cv2.destroyAllWindows()
@@ -195,6 +200,11 @@ for year in os.listdir(station_path):
             for date_file in os.listdir(date_dir):
                 if not date_file.endswith(".npy"):
                     break
+                #print(date_file[8:10])
+                time = int(date_file[8:10])
+                if time >11:
+                    continue
+                    #print(time)
                 file_name = date_file
                 date_txt = date_dir + "/" + date_file
                 #print(date_txt)
@@ -205,7 +215,7 @@ for year in os.listdir(station_path):
             #data_station_huminity = np.reshape()
                 #print(f.shape)
 data_station_huminity = np.array(tmp_huminitys)
-data_station_huminity = np.reshape(data_station_huminity,(-1,24,210,340,3))
+data_station_huminity = np.reshape(data_station_huminity,(-1,12,210,340,3))
 del tmp_huminitys
 print("number of videos: ", data_station_huminity.shape[0])
 
@@ -227,6 +237,10 @@ for year in os.listdir(station_path):
             for date_file in os.listdir(date_dir):
                 if not date_file.endswith(".npy"):
                     break
+                time = int(date_file[8:10])
+                if time >11:
+                    continue
+                    #print(time)
                 file_name = date_file
                 date_txt = date_dir + "/" + date_file
                 #print(date_txt)
@@ -238,7 +252,7 @@ for year in os.listdir(station_path):
             #data_station_huminity = np.reshape()
                 #print(f.shape)
 data_station_temperature = np.array(tmp_temps)
-data_station_temperature = np.reshape(data_station_temperature,(-1,24,210,340,3))
+data_station_temperature = np.reshape(data_station_temperature,(-1,12,210,340,3))
 print("number of videos: ", data_station_temperature.shape[0])
 del tmp_temps
 
@@ -274,7 +288,7 @@ print("finish split huminity")
 
 print("[INFO] build model")
 
-weather_frames, weather_channels, station_frames, station_channels, rows, columns = 4,3, 24, 3,210,340
+weather_frames, weather_channels, station_frames, station_channels, rows, columns = 2,3, 12, 3,210,340
 
 #encode model
 
@@ -492,6 +506,7 @@ plt.savefig(args["plot"])
 print("[INFO] saving COVID-19 detector model...")
 model.save(args["model"])
 f_log.close()
+
 '''
     
     
