@@ -57,7 +57,7 @@ args = vars(ap.parse_args())
 # initialize the initial learning rate, number of epochs to train for,
 # and batch size
 INIT_LR = 1e-3
-EPOCHS = 5
+EPOCHS = 2
 BS = 1
 num_folds = 3
 
@@ -110,7 +110,7 @@ for imagePath in imagePaths:
     label = imagePath.split(os.path.sep)[-1]
     #print(label[-8:-4])
     time = label[-8:-4]
-    if time == "1200" or time == "1800":
+    if time == "1200" or time == "1800" or time =="0600":
         continue
     # load the image, swap color channels, and resize it to be a fixed
     # 224x224 pixels while ignoring aspect ratio
@@ -149,7 +149,7 @@ for imagePath in imagePaths:
         
 # convert the data and labels to NumPy arrays while scaling the pixel
 # intensities to the range [0, 1]
-data_weathers = np.reshape(data, (-1,2,340,210,3))
+data_weathers = np.reshape(data, (-1,1,340,210,3))
 data = np.array(data) / 255.0
 #labels = np.array(labels)
 cv2.destroyAllWindows()
@@ -288,7 +288,7 @@ print("finish split huminity")
 
 print("[INFO] build model")
 
-weather_frames, weather_channels, station_frames, station_channels, rows, columns = 2,3, 12, 3,210,340
+weather_frames, weather_channels, station_frames, station_channels, rows, columns = 1,3, 12, 3,210,340
 
 #encode model
 
