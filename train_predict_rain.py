@@ -131,6 +131,7 @@ for imagePath in imagePaths:
     
     if label[3:11] not in data_weather_labels:
         data_weather_labels.append(label[3:11])
+        #print(imagePath.split(os.path.sep))
     
     '''
     if last_label == None:
@@ -146,9 +147,10 @@ for imagePath in imagePaths:
         last_label = None
     '''
 
-        
+#print(len(labels))
 # convert the data and labels to NumPy arrays while scaling the pixel
 # intensities to the range [0, 1]
+#print(len(data))
 data_weathers = np.reshape(data, (-1,1,340,210,3))
 data = np.array(data) / 255.0
 #labels = np.array(labels)
@@ -157,6 +159,7 @@ data_weathers = np.array(data_weathers) / 255.0
 #data_weather_labels = np.array(data_weather_labels)
 print("number of videos: ", str(len(data_weathers)))
 print("number of the date of the videos: ", str(data_weathers.shape[0]))
+print(data_weathers.shape)
 
 #del labels
 del data
