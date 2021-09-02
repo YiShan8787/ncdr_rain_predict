@@ -44,31 +44,40 @@ from openpyxl import load_workbook
 
 #os.environ["CUDA_VISIBLE_DEVICES"] = "" # use cpu
 # construct the argument parser and parse the arguments
+
+###############################################################################
 ap = argparse.ArgumentParser()
+# weather image path
 ap.add_argument("-d", "--weather_dataset", required=False,
 	help="path to input dataset", default = "/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/weather_image")
+# loss and acc file name
 ap.add_argument("-p", "--plot", type=str, default="loss_acc.png",
 	help="path to output loss/accuracy plot")
+# model file name
 ap.add_argument("-m", "--model", type=str, default="rain_predict.h5",
 	help="path to output loss/accuracy plot")
+# ground truth path
 ap.add_argument("-gt", "--gt", type=str, default="data/gt/south.xlsx",
 	help="gt for the data")
+# station data time
+ap.add_argument("-st", "--station_time", type=int, default=12,
+	help="time for station data")
 args = vars(ap.parse_args())
 # initialize the initial learning rate, number of epochs to train for,
 # and batch size
 INIT_LR = 1e-3
-EPOCHS = 2
+EPOCHS = 10
 BS = 1
 num_folds = 3
 
 random_st = 42
+use_sampling = True
 
-'''
-need to be modify
-'''
+#################################################################################
 
 print("[INFO] loading gt")
 gtPaths = args["gt"]
+station_time = args["station_time"]
 
 # 讀取 Excel 檔案
 wb = load_workbook(gtPaths)
@@ -168,12 +177,14 @@ del data
 print("[INFO] category labeling")
 category_labels = []
 positive_number = 0
+sample_list = []
 for i in range(len(data_weather_labels)):
     if data_weather_labels[i] in gt_time_list:
         category_labels.append(1)
         positive_number = positive_number +1
     else:
         category_labels.append(0)
+        sample_list.append(i)
     
     
 print("number of positive number: ", str(positive_number))
@@ -218,7 +229,7 @@ for year in os.listdir(station_path):
             #data_station_huminity = np.reshape()
                 #print(f.shape)
 data_station_huminity = np.array(tmp_huminitys)
-data_station_huminity = np.reshape(data_station_huminity,(-1,12,210,340,3))
+data_station_huminity = np.reshape(data_station_huminity,(-1,station_time,210,340,3))
 del tmp_huminitys
 print("number of videos: ", data_station_huminity.shape[0])
 
@@ -255,9 +266,26 @@ for year in os.listdir(station_path):
             #data_station_huminity = np.reshape()
                 #print(f.shape)
 data_station_temperature = np.array(tmp_temps)
-data_station_temperature = np.reshape(data_station_temperature,(-1,12,210,340,3))
+data_station_temperature = np.reshape(data_station_temperature,(-1,station_time,210,340,3))
 print("number of videos: ", data_station_temperature.shape[0])
 del tmp_temps
+
+if use_sampling:
+    print("[INFO] sampling")
+    from random import sample
+    delete_sample_index = sample(sample_list,len(data_weather_labels) - positive_number*2)
+    data_weathers = np.delete(data_weathers,delete_sample_index,0)
+    print("shape of data weathers: ", data_weathers.shape)
+
+    category_labels = np.delete(category_labels,delete_sample_index,0)
+    print("shape of category labels: ", category_labels.shape)
+
+    data_station_temperature = np.delete(data_station_temperature,delete_sample_index,0)
+    print("shape of station temp: ", data_station_temperature.shape)
+
+    data_station_huminity = np.delete(data_station_huminity,delete_sample_index,0)
+    print("shape of station huminity: ", data_station_huminity.shape)
+
 
 print("[INFO] train-test split")
 
@@ -291,7 +319,7 @@ print("finish split huminity")
 
 print("[INFO] build model")
 
-weather_frames, weather_channels, station_frames, station_channels, rows, columns = 1,3, 12, 3,210,340
+weather_frames, weather_channels, station_frames, station_channels, rows, columns = 1,3, station_time, 3,210,340
 
 #encode model
 
@@ -509,6 +537,8 @@ plt.savefig(args["plot"])
 print("[INFO] saving COVID-19 detector model...")
 model.save(args["model"])
 f_log.close()
+
+
 
 '''
     
