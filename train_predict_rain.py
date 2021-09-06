@@ -73,6 +73,8 @@ num_folds = 3
 random_st = 42
 use_sampling = True
 
+station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_data'
+
 #################################################################################
 
 print("[INFO] loading gt")
@@ -235,8 +237,6 @@ print("number of videos: ", data_station_huminity.shape[0])
 
 print("[INFO] loading station data(temperature)")
 
-station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_data'
-
 #data_station_huminity =[]
 tmp_temps = []
 
@@ -270,6 +270,41 @@ data_station_temperature = np.reshape(data_station_temperature,(-1,station_time,
 print("number of videos: ", data_station_temperature.shape[0])
 del tmp_temps
 
+print("[INFO] loading station data(wind_direction)")
+
+tmp_wind_directions = []
+
+
+for year in os.listdir(station_path):
+    #print(file)
+    year_dir = station_path + "/" + year
+    for month in os.listdir(year_dir):
+        month_dir = year_dir + "/" + month
+        for date in os.listdir(month_dir):
+            date_dir = month_dir + "/" + date + "/wind_direction_npy"
+            for date_file in os.listdir(date_dir):
+                if not date_file.endswith(".npy"):
+                    break
+                time = int(date_file[8:10])
+                if time >11:
+                    continue
+                    #print(time)
+                file_name = date_file
+                date_txt = date_dir + "/" + date_file
+                #print(date_txt)
+                f = np.load(date_txt)
+                #f[f == np.nan] = 0
+                
+                
+                tmp_wind_directions.append(f)
+            #data_station_huminity = np.reshape()
+                #print(f.shape)
+data_station_wind_direction = np.array(tmp_wind_directions)
+data_station_wind_direction = np.reshape(data_station_wind_direction,(-1,station_time,210,340,3))
+print("number of videos: ", data_station_wind_direction.shape[0])
+del tmp_wind_directions
+
+
 if use_sampling:
     print("[INFO] sampling")
     from random import sample
@@ -285,6 +320,9 @@ if use_sampling:
 
     data_station_huminity = np.delete(data_station_huminity,delete_sample_index,0)
     print("shape of station huminity: ", data_station_huminity.shape)
+
+    data_station_wind_direction = np.delete(data_station_wind_direction,delete_sample_index,0)
+    print("shape of station wind direction: ", data_station_wind_direction.shape)
 
 
 print("[INFO] train-test split")
@@ -317,6 +355,15 @@ del test_huminity_Y
 del data_station_huminity
 print("finish split huminity")
 
+(train_wind_X, test_wind_X, train_wind_Y, test_wind_Y) = train_test_split(data_station_wind_direction, category_labels,
+	test_size=0.20, stratify=category_labels, random_state=random_st)
+
+del train_wind_Y
+del test_wind_Y
+
+del data_station_wind_direction
+print("finish split wind")
+
 print("[INFO] build model")
 
 weather_frames, weather_channels, station_frames, station_channels, rows, columns = 1,3, station_time, 3,210,340
@@ -337,6 +384,11 @@ huminity_video = Input(shape=(station_frames,
                      rows,
                      columns,
                      station_channels))
+
+wind_video = Input(shape=(station_frames,
+                rows,
+                columns,
+                station_channels))           
 
 #vgg model
 
@@ -361,6 +413,13 @@ vgg_huminity = VGG16(input_shape=(rows,
                  include_top=False)
 vgg_huminity.trainable = False
 
+vgg_wind = VGG16(input_shape=(rows,
+                              columns,
+                              station_channels),
+                 weights="imagenet",
+                 include_top=False)
+vgg_wind.trainable = False
+
 #cnn out
 
 cnn_out_weather = GlobalAveragePooling2D()(vgg_weather.output)
@@ -368,6 +427,8 @@ cnn_out_weather = GlobalAveragePooling2D()(vgg_weather.output)
 cnn_out_temp = GlobalAveragePooling2D()(vgg_temp.output)
 
 cnn_out_huminity = GlobalAveragePooling2D()(vgg_huminity.output)
+
+cnn_out_wind = GlobalAveragePooling2D()(vgg_wind.output)
 
 #cnn model 
 
@@ -377,6 +438,8 @@ cnn_temp = Model(vgg_temp.input, cnn_out_temp)
 
 cnn_huminity = Model(vgg_huminity.input, cnn_out_huminity)
 
+cnn_wind = Model(vgg_wind.input, cnn_out_wind)
+
 #encode frame
 
 weather_encoded_frames = TimeDistributed(cnn_weather)(weather_video)
@@ -384,6 +447,8 @@ weather_encoded_frames = TimeDistributed(cnn_weather)(weather_video)
 temp_encoded_frames = TimeDistributed(cnn_temp)(temp_video)
 
 huminity_encoded_frames = TimeDistributed(cnn_huminity)(huminity_video)
+
+wind_encoded_frames = TimeDistributed(cnn_wind)(wind_video)
 
 # LSTM
 
@@ -393,9 +458,11 @@ temp_encoded_sequence = LSTM(256)(temp_encoded_frames)
 
 huminity_encoded_sequence = LSTM(256)(huminity_encoded_frames)
 
+wind_encoded_sequence = LSTM(256)(wind_encoded_frames)
+
 #concate
 
-encoded_sequence = concatenate([weather_encoded_sequence, temp_encoded_sequence, huminity_encoded_sequence])
+encoded_sequence = concatenate([weather_encoded_sequence, temp_encoded_sequence, huminity_encoded_sequence, wind_encoded_sequence])
 
 # dense layer
 
@@ -404,7 +471,7 @@ outputs = Dense(2, activation="softmax")(hidden_layer)
 
 # build all model
 
-model = Model(inputs = [weather_video, temp_video, huminity_video], outputs= [outputs])
+model = Model(inputs = [weather_video, temp_video, huminity_video, wind_video], outputs= [outputs])
 model.summary()
 
 # compile our model
@@ -435,6 +502,7 @@ for train_index, test_index in kfold.split(train_weather_X, train_weather_Y):
     X_weather_train, X_weather_test = train_weather_X[train_index], train_weather_X[test_index]
     X_temp_train, X_temp_test = train_temp_X[train_index], train_temp_X[test_index]
     X_huminity_train, X_huminity_test = train_huminity_X[train_index], train_huminity_X[test_index]
+    X_wind_train, X_wind_test = train_wind_X[train_index], train_wind_X[test_index]
 
     Y_train, Y_test = train_weather_Y[train_index], train_weather_Y[test_index]
 
@@ -442,13 +510,13 @@ for train_index, test_index in kfold.split(train_weather_X, train_weather_Y):
     print(f'Training for fold {fold_no} ...')
 
     # Fit data to model
-    history = model.fit([X_weather_train, X_temp_train, X_huminity_train], Y_train,
+    history = model.fit([X_weather_train, X_temp_train, X_huminity_train, X_wind_train], Y_train,
                 batch_size=BS,
                 epochs=EPOCHS,
                 verbose=1)
 
     # Generate generalization metrics
-    scores = model.evaluate([X_weather_test, X_temp_test, X_huminity_test], train_weather_Y[test_index], verbose=0,batch_size = BS)
+    scores = model.evaluate([X_weather_test, X_temp_test, X_huminity_test, X_wind_test], train_weather_Y[test_index], verbose=0,batch_size = BS)
     print(f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%')
     acc_per_fold.append(scores[1] * 100)
     loss_per_fold.append(scores[0])
@@ -483,7 +551,7 @@ f_log.write('-------------------------------------------------------------------
 # make predictions on the testing set
 print("[INFO] evaluating network...")
 f_log.write("[INFO] evaluating network...")
-predIdxs = model.predict([test_weather_X, test_temp_X, test_huminity_X], batch_size=BS)
+predIdxs = model.predict([test_weather_X, test_temp_X, test_huminity_X, test_wind_X], batch_size=BS)
 # for each image in the testing set we need to find the index of the
 # label with corresponding largest predicted probability
 predIdxs = np.argmax(predIdxs, axis=1)
@@ -526,7 +594,7 @@ plt.plot(np.arange(0, N), history.history["loss"], label="train_loss")
 #plt.plot(np.arange(0, N), history.history["val_loss"], label="val_loss")
 plt.plot(np.arange(0, N), history.history["acc"], label="train_acc")
 #plt.plot(np.arange(0, N), history.history["val_accuracy"], label="val_acc")
-plt.title("Training Loss and Accuracy on COVID-19 Dataset")
+plt.title("Training Loss and Accuracy")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss/Accuracy")
 plt.legend(loc="lower left")
