@@ -18,6 +18,8 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import GlobalAveragePooling2D
 from tensorflow.keras.layers import concatenate
 
+from tensorflow.keras.layers import MaxPooling1D, Conv1D
+
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.layers import TimeDistributed
 
@@ -79,6 +81,11 @@ station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_da
 satellite_frame = -10
 satellite_x = 210
 satellite_y = 340
+
+#north '46690','46694','46692'
+#mid 'C0G860','C01460'
+#south 'C0V250','01O760','C0R140'
+special_station_input_id = ['C0V250','C0R140']
 
 #################################################################################
 
@@ -350,6 +357,63 @@ data_satellite = np.array(data_satellite)
 print("number of videos: ", data_satellite.shape)
 del tmp_satellite
 
+print("[INFO] loading special station")
+
+tmp_special_stations = []
+data_special_stations = []
+
+for year in os.listdir(station_path):
+    #print(file)
+    year_dir = station_path + "/" + year
+    for month in os.listdir(year_dir):
+        month_dir = year_dir + "/" + month
+        for date in os.listdir(month_dir):
+            date_dir = month_dir + "/" + date
+            for date_file in os.listdir(date_dir):
+                if not date_file.endswith(".txt"):
+                    break
+                time = int(date_file[-6:-4])
+                if time >11:
+                    continue
+                file_name = date_file
+                date_txt = date_dir + "/" + date_file
+                #print(date_txt)
+                f = open(date_txt)
+                
+                stations = []
+                lons = []
+                lats = []
+                elevs = []
+                temps = []
+                huminitys = []
+                wind_directions = []
+                
+                for line in f.readlines():
+                    line = line.replace("-", " -")
+                    parsing = line.split()
+                    if parsing[0] not in special_station_input_id:
+                        continue
+                    else:
+                        # parsing append list
+                        stations.append(parsing[0])
+                        lons.append(float("{:.2f}".format(float(parsing[1]))))
+                        lats.append(float("{:.2f}".format(float(parsing[2]))))
+                        #elevs.append(float("{:.4f}".format(float(parsing[3]))))
+                        elevs.append(float(parsing[3]))
+                
+                        temps.append(float(parsing[5]))
+                
+                        huminitys.append((float(parsing[6])))
+                        wind_directions.append((float(parsing[7])))
+                        
+                for num in range(len(stations)):
+                    tmp_special_stations.append([huminitys[0],temps[0],wind_directions[0]])
+                data_special_stations.append(tmp_special_stations)
+                tmp_special_stations = []
+data_special_stations = np.array(data_special_stations)
+data_special_stations = np.reshape(data_special_stations,(-1,station_time,len(special_station_input_id)*3))
+print("number of videos: ", data_special_stations.shape)
+
 if use_sampling:
     print("[INFO] sampling")
     from random import sample
@@ -371,6 +435,9 @@ if use_sampling:
 
     data_satellite = np.delete(data_satellite,delete_sample_index,0)
     print("shape of satellite ", data_satellite.shape)
+
+    data_special_stations = np.delete(data_special_stations,delete_sample_index,0)
+    print("shape of special stations ", data_special_stations.shape)
 
 
 print("[INFO] train-test split")
@@ -421,6 +488,15 @@ del test_satellite_Y
 del data_satellite
 print("finish split satellite")
 
+(train_special_stations_X, test_special_stations_X, train_special_stations_Y, test_special_stations_Y) = train_test_split(data_special_stations, category_labels,
+	test_size=0.20, stratify=category_labels, random_state=random_st)
+
+del train_special_stations_Y
+del test_special_stations_Y
+
+del data_special_stations
+print("finish split satellite")
+
 
 print("[INFO] build model")
 
@@ -451,7 +527,12 @@ wind_video = Input(shape=(station_frames,
 satellite_video = Input(shape=(abs(satellite_frame),
                 satellite_x,
                 satellite_y,
-                station_channels))       
+                station_channels))
+
+special_stations_video = Input(shape=(station_frames,
+                len(special_station_input_id)*3,
+                )
+)       
 
 #vgg model
 
@@ -490,6 +571,12 @@ vgg_satellite = VGG16(input_shape=(satellite_x,
                  include_top=False)
 vgg_satellite.trainable = False
 
+conv_1d_special_stations = Conv1D(
+                filters=32,
+               kernel_size=8,
+               strides=1,
+               activation='relu')(special_stations_video)
+
 #cnn out
 
 cnn_out_weather = GlobalAveragePooling2D()(vgg_weather.output)
@@ -501,6 +588,8 @@ cnn_out_huminity = GlobalAveragePooling2D()(vgg_huminity.output)
 cnn_out_wind = GlobalAveragePooling2D()(vgg_wind.output)
 
 cnn_out_satellite = GlobalAveragePooling2D()(vgg_satellite.output)
+
+cnn_out_special_stations = MaxPooling1D(pool_size=4)(conv_1d_special_stations)
 
 #cnn model 
 
@@ -514,6 +603,8 @@ cnn_wind = Model(vgg_wind.input, cnn_out_wind)
 
 cnn_satellite = Model(vgg_satellite.input, cnn_out_satellite)
 
+cnn_special_stations = Model(special_stations_video, cnn_out_special_stations)
+
 #encode frame
 
 weather_encoded_frames = TimeDistributed(cnn_weather)(weather_video)
@@ -525,6 +616,8 @@ huminity_encoded_frames = TimeDistributed(cnn_huminity)(huminity_video)
 wind_encoded_frames = TimeDistributed(cnn_wind)(wind_video)
 
 satellite_encoded_frames = TimeDistributed(cnn_satellite)(satellite_video)
+
+#special_stations_encoded_frames = TimeDistributed(cnn_special_stations)(special_stations_video)
 
 # LSTM
 
@@ -538,9 +631,17 @@ wind_encoded_sequence = LSTM(256)(wind_encoded_frames)
 
 satellite_encoded_sequence = LSTM(256)(satellite_encoded_frames)
 
+special_stations_encodeed_sequence = LSTM(256)(cnn_out_special_stations)
+
 #concate
 
-encoded_sequence = concatenate([weather_encoded_sequence, temp_encoded_sequence, huminity_encoded_sequence, wind_encoded_sequence, satellite_encoded_sequence])
+encoded_sequence = concatenate([
+    weather_encoded_sequence, 
+    temp_encoded_sequence, 
+    huminity_encoded_sequence, 
+    wind_encoded_sequence, 
+    satellite_encoded_sequence, 
+    special_stations_encodeed_sequence])
 
 # dense layer
 
@@ -549,7 +650,7 @@ outputs = Dense(2, activation="softmax")(hidden_layer)
 
 # build all model
 
-model = Model(inputs = [weather_video, temp_video, huminity_video, wind_video, satellite_video], outputs= [outputs])
+model = Model(inputs = [weather_video, temp_video, huminity_video, wind_video, satellite_video,special_stations_video], outputs= [outputs])
 model.summary()
 
 # compile our model
@@ -582,6 +683,7 @@ for train_index, test_index in kfold.split(train_weather_X, train_weather_Y):
     X_huminity_train, X_huminity_test = train_huminity_X[train_index], train_huminity_X[test_index]
     X_wind_train, X_wind_test = train_wind_X[train_index], train_wind_X[test_index]
     X_satellite_train, X_satellite_test = train_satellite_X[train_index], train_satellite_X[test_index]
+    X_special_stations_train, X_special_stations_test = train_special_stations_X[train_index], train_special_stations_X[test_index]
 
     Y_train, Y_test = train_weather_Y[train_index], train_weather_Y[test_index]
 
@@ -589,13 +691,25 @@ for train_index, test_index in kfold.split(train_weather_X, train_weather_Y):
     print(f'Training for fold {fold_no} ...')
 
     # Fit data to model
-    history = model.fit([X_weather_train, X_temp_train, X_huminity_train, X_wind_train, X_satellite_train], Y_train,
+    history = model.fit([X_weather_train, 
+                X_temp_train, 
+                X_huminity_train, 
+                X_wind_train, 
+                X_satellite_train, 
+                X_special_stations_train], Y_train,
                 batch_size=BS,
                 epochs=EPOCHS,
                 verbose=1)
 
     # Generate generalization metrics
-    scores = model.evaluate([X_weather_test, X_temp_test, X_huminity_test, X_wind_test, X_satellite_test], train_weather_Y[test_index], verbose=0,batch_size = BS)
+    scores = model.evaluate([X_weather_test, 
+    X_temp_test, 
+    X_huminity_test, 
+    X_wind_test, 
+    X_satellite_test, 
+    X_special_stations_test], 
+    train_weather_Y[test_index], verbose=0,batch_size = BS)
+
     print(f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%')
     acc_per_fold.append(scores[1] * 100)
     loss_per_fold.append(scores[0])
@@ -630,7 +744,14 @@ f_log.write('-------------------------------------------------------------------
 # make predictions on the testing set
 print("[INFO] evaluating network...")
 f_log.write("[INFO] evaluating network...")
-predIdxs = model.predict([test_weather_X, test_temp_X, test_huminity_X, test_wind_X, test_satellite_X], batch_size=BS)
+predIdxs = model.predict([test_weather_X, 
+test_temp_X, 
+test_huminity_X, 
+test_wind_X, 
+test_satellite_X,
+test_special_stations_X], batch_size=BS)
+
+
 # for each image in the testing set we need to find the index of the
 # label with corresponding largest predicted probability
 predIdxs = np.argmax(predIdxs, axis=1)
