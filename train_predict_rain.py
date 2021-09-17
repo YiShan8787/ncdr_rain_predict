@@ -43,6 +43,7 @@ import cv2
 import os
 
 from openpyxl import load_workbook
+import time as tt
 
 #os.environ["CUDA_VISIBLE_DEVICES"] = "" # use cpu
 # construct the argument parser and parse the arguments
@@ -83,8 +84,8 @@ satellite_x = 210
 satellite_y = 340
 
 #north '46690','46694','46692'
-#mid 'C0G860','C01460'
-#south 'C0V250','01O760','C0R140'
+#mid 'C0G860','C01460'??
+#south 'C0V250','01O760'??,'C0R140'
 special_station_input_id = ['C0V250','C0R140']
 
 #################################################################################
@@ -101,7 +102,8 @@ gt_time_list = []
 
 for row in sheet.rows:
     #print(row[0].value)
-    gt_time_list.append(str(row[0].value))
+    if str(row[0].value) not in gt_time_list:
+        gt_time_list.append(str(row[0].value))
     #for cell in row:
     #    print(cell.value)
 
@@ -718,7 +720,9 @@ for train_index, test_index in kfold.split(train_weather_X, train_weather_Y):
     fold_no = fold_no + 1
 
 # == Provide average scores ==
-f_log = open("demofile3.txt", "w")
+second = str(tt.time())
+
+f_log = open(second+".txt", "w")
 print('------------------------------------------------------------------------')
 f_log.write('------------------------------------------------------------------------')
 print('Score per fold')
@@ -774,6 +778,9 @@ sensitivity = cm[0, 0] / (cm[0, 0] + cm[0, 1])
 specificity = cm[1, 1] / (cm[1, 0] + cm[1, 1])
 # show the confusion matrix, accuracy, sensitivity, and specificity
 print(cm)
+cm_txt = np.array2string(cm)
+f_log.write(cm_txt)
+
 print("acc: {:.4f}".format(acc))
 print("sensitivity: {:.4f}".format(sensitivity))
 print("specificity: {:.4f}".format(specificity))
@@ -798,12 +805,17 @@ plt.title("Training Loss and Accuracy")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss/Accuracy")
 plt.legend(loc="lower left")
-plt.savefig(args["plot"])
+#plt.savefig(args["plot"])
 
 
+print(second)
+if acc > 0.5 or history.history["loss"][-1]<0.5:
+    plt.savefig(second + '.png')
+    model.save(second + '.h5')
 # serialize the model to disk
-print("[INFO] saving COVID-19 detector model...")
-model.save(args["model"])
+print("[INFO] saving model...")
+#model.save(args["model"])
+
 f_log.close()
 
 
