@@ -62,7 +62,7 @@ ap.add_argument("-p", "--plot", type=str, default="loss_acc.png",
 ap.add_argument("-m", "--model", type=str, default="rain_predict.h5",
 	help="path to output loss/accuracy plot")
 # ground truth path
-ap.add_argument("-gt", "--gt", type=str, default="data/gt/south.xlsx",
+ap.add_argument("-gt", "--gt", type=str, default="data/gt/north.xlsx",
 	help="gt for the data")
 # station data time
 ap.add_argument("-st", "--station_time", type=int, default=12,
@@ -83,10 +83,10 @@ satellite_frame = -10
 satellite_x = 210
 satellite_y = 340
 
-#north '46690','46694','46692'
+#north '466900','466940','466920'
 #mid 'C0G860','C01460'??
 #south 'C0V250','01O760'??,'C0R140'
-special_station_input_id = ['C0V250','C0R140']
+special_station_input_id = ['466900','466940','466920']
 
 #################################################################################
 
@@ -809,7 +809,7 @@ plt.legend(loc="lower left")
 
 
 print(second)
-if acc > 0.5 or history.history["loss"][-1]<0.5:
+if acc >= 0.6 or history.history["loss"][-1]<0.5:
     plt.savefig(second + '.png')
     model.save(second + '.h5')
 # serialize the model to disk
