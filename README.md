@@ -6,7 +6,7 @@ a python script for predict if rain
 type "python train_predict_rain.py -d data"
 
 
-#Q&A
+# Q&A
 
 Q1. when i am doing preprocessing, it come up the error "ValueError: left cannot be >= right colorbar"
 
