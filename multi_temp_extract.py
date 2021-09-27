@@ -44,7 +44,8 @@ for year in os.listdir(station_path):
             date_dir = month_dir + "/" + date
             for date_file in os.listdir(date_dir):
                 if not date_file.endswith(".txt"):
-                    break
+                    #break
+                    continue
                 file_name = date_file
                 date_txt = date_dir + "/" + date_file
                 #print(date_txt)
