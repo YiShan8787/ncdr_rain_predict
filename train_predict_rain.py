@@ -383,7 +383,8 @@ for year in os.listdir(station_path):
             date_dir = month_dir + "/" + date
             for date_file in os.listdir(date_dir):
                 if not date_file.endswith(".txt"):
-                    break
+                    #break
+                    continue
                 time = int(date_file[-6:-4])
                 if time >11:
                     continue
@@ -669,7 +670,7 @@ model.summary()
 print("[INFO] compiling model...")
 opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
 model.compile(loss="binary_crossentropy", optimizer=opt,
-	metrics=["accuracy"])
+	metrics=["acc"])
 # train the head of the network
 print("[INFO] training head...")
 
@@ -815,18 +816,18 @@ plt.title("Training Loss and Accuracy")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss/Accuracy")
 plt.legend(loc="lower left")
-plt.savefig(args["plot"])
-
+#plt.savefig(args["plot"])
+#model.save(args["model"])
 
 print(second)
-'''
+
 if acc >= 0.6 or history.history["loss"][-1]<0.5:
     plt.savefig(second + '.png')
     model.save(second + '.h5')
-'''
+
 # serialize the model to disk
 print("[INFO] saving model...")
-model.save(args["model"])
+
 
 f_log.close()
 

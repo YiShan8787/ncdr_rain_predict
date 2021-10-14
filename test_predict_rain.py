@@ -49,25 +49,36 @@ from tensorflow import keras
 
 #os.environ["CUDA_VISIBLE_DEVICES"] = "" # use cpu
 # construct the argument parser and parse the arguments
-
-###############################################################################
 ap = argparse.ArgumentParser()
+###############################################################################
+#----------------------------PATH---------------------------
 # weather image path
 ap.add_argument("-wd", "--weather_dataset", required=False,
-	help="path to input dataset", default = "/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/weather_image")
+	help="path to input dataset", default = "/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/test_data/weather_image")
 ap.add_argument("-sd", "--satellite_dataset", required=False,
-	help="path to input dataset", default = "/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/satellite")
+	help="path to input dataset", default = "/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/test_data/satellite_test")
 # ground truth path
-ap.add_argument("-gt", "--gt", type=str, default="data/gt/north.xlsx",
+ap.add_argument("-gt", "--gt", type=str, default="data/gt/south.xlsx",
 	help="gt for the data")
-
-station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_data'
-
-model_path = "/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/Model/north/1632038787.8442829.h5"
+station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/test_data/station_data'
+model_path = "/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/Model/south/1631858915.5861917.h5"
+result_path = "Result/result.txt"
+#--------------------------data parameter----------------------
 # station data time
 ap.add_argument("-st", "--station_time", type=int, default=12,
 	help="time for station data")
-args = vars(ap.parse_args())
+
+
+use_sampling = False
+
+satellite_frame = -10
+#north '466900','466940','466920'
+#mid 'C0G860','C01460'??
+#south 'C0V250','01O760'??,'C0R140'
+special_station_input_id = ['C0V250','C0R140']
+
+#################################################################################
+
 # initialize the initial learning rate, number of epochs to train for,
 # and batch size
 INIT_LR = 1e-3
@@ -76,21 +87,6 @@ BS = 1
 num_folds = 3
 
 random_st = 42
-use_sampling = False
-
-
-satellite_frame = -10
-
-
-
-
-#north '466900','466940','466920'
-#mid 'C0G860','C01460'??
-#south 'C0V250','01O760'??,'C0R140'
-special_station_input_id = ['466900','466940','466920']
-
-#################################################################################
-
 # loss and acc file name
 ap.add_argument("-p", "--plot", type=str, default="loss_acc.png",
 	help="path to output loss/accuracy plot")
@@ -101,6 +97,8 @@ ap.add_argument("-m", "--model", type=str, default="rain_predict.h5",
 satellite_x = 210
 satellite_y = 340
 
+args = vars(ap.parse_args())
+
 print("[INFO] loading gt")
 gtPaths = args["gt"]
 station_time = args["station_time"]
@@ -108,6 +106,7 @@ station_time = args["station_time"]
 # 讀取 Excel 檔案
 wb = load_workbook(gtPaths)
 sheet = wb.active
+check_file_cnt = 1
 
 gt_time_list = [] 
 
@@ -200,6 +199,62 @@ print(data_weathers.shape)
 #del labels
 del data
 
+
+
+print("[INFO] loading station data(huminity)")
+
+
+tmp_huminitys = []
+
+
+for year in os.listdir(station_path):
+    #print(file)
+    year_dir = station_path + "/" + year
+    for month in os.listdir(year_dir):
+        month_dir = year_dir + "/" + month
+        for date in sorted(os.listdir(month_dir)):
+            date_cnt = int(date[-2:])
+            #print(date_cnt)
+            
+            if date not in data_weather_labels:
+                data_weather_labels.append(date)
+            
+            if date_cnt == 1:
+                check_file_cnt = date_cnt
+            else:
+                while check_file_cnt+1 != date_cnt:
+                    #print(date_cnt)
+                    #print(check_file_cnt)
+                    for file_i in range(station_time):
+                        tmp_huminitys.append(np.zeros((210,340,3)))
+                    check_file_cnt = check_file_cnt +1
+                    print("lack file before: ",date)
+                check_file_cnt = date_cnt
+            
+            date_dir = month_dir + "/" + date + "/huminity_npy"
+            for date_file in os.listdir(date_dir):
+                if not date_file.endswith(".npy"):
+                    continue
+                #print(date_file[8:10])
+                time = int(date_file[8:10])
+                if time >11:
+                    continue
+                    #print(time)
+                file_name = date_file
+                date_txt = date_dir + "/" + date_file
+                #print(date_txt)
+                f = np.load(date_txt)
+                #f[f == np.nan] = 0
+                
+                tmp_huminitys.append(f)
+            #data_station_huminity = np.reshape()
+                #print(f.shape)
+data_station_huminity = np.array(tmp_huminitys)
+data_station_huminity = np.reshape(data_station_huminity,(-1,station_time,210,340,3))
+del tmp_huminitys
+print("number of videos: ", data_station_huminity.shape[0])
+
+
 #find time in labels, then buid the frames
 print("[INFO] category labeling")
 category_labels = []
@@ -220,45 +275,6 @@ print("number of negative number: ", str(len(data_weather_labels) - positive_num
 print("[INFO] one-hot")
 category_labels = to_categorical(category_labels)
 
-#test_shape = np.load('/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_data/2014/06/20140601/huminity_npy/2014060100_huminity_arr.npy')
-#print(test_shape.shape)
-
-print("[INFO] loading station data(huminity)")
-
-#station_path = '/media/ubuntu/My Passport/NCDR/ncdr_rain_predict/data/station_data'
-
-#data_station_huminity =[]
-tmp_huminitys = []
-
-
-for year in os.listdir(station_path):
-    #print(file)
-    year_dir = station_path + "/" + year
-    for month in os.listdir(year_dir):
-        month_dir = year_dir + "/" + month
-        for date in os.listdir(month_dir):
-            date_dir = month_dir + "/" + date + "/huminity_npy"
-            for date_file in os.listdir(date_dir):
-                if not date_file.endswith(".npy"):
-                    break
-                #print(date_file[8:10])
-                time = int(date_file[8:10])
-                if time >11:
-                    continue
-                    #print(time)
-                file_name = date_file
-                date_txt = date_dir + "/" + date_file
-                #print(date_txt)
-                f = np.load(date_txt)
-                #f[f == np.nan] = 0
-                
-                tmp_huminitys.append(f)
-            #data_station_huminity = np.reshape()
-                #print(f.shape)
-data_station_huminity = np.array(tmp_huminitys)
-data_station_huminity = np.reshape(data_station_huminity,(-1,station_time,210,340,3))
-del tmp_huminitys
-print("number of videos: ", data_station_huminity.shape[0])
 
 print("[INFO] loading station data(temperature)")
 
@@ -271,11 +287,27 @@ for year in os.listdir(station_path):
     year_dir = station_path + "/" + year
     for month in os.listdir(year_dir):
         month_dir = year_dir + "/" + month
-        for date in os.listdir(month_dir):
+        for date in sorted(os.listdir(month_dir)):
             date_dir = month_dir + "/" + date + "/temp_npy"
+
+            date_cnt = int(date[-2:])
+            #print(date_cnt)
+            
+            if date_cnt == 1:
+                check_file_cnt = date_cnt
+            else:
+                while check_file_cnt+1 != date_cnt:
+                    #print(date_cnt)
+                    #print(check_file_cnt)
+                    for file_i in range(station_time):
+                        tmp_temps.append(np.zeros((210,340,3)))
+                    check_file_cnt = check_file_cnt +1
+                    print("lack file before: ",date)
+                check_file_cnt = date_cnt
+
             for date_file in os.listdir(date_dir):
                 if not date_file.endswith(".npy"):
-                    break
+                    continue
                 time = int(date_file[8:10])
                 if time >11:
                     continue
@@ -303,13 +335,29 @@ tmp_wind_directions = []
 for year in os.listdir(station_path):
     #print(file)
     year_dir = station_path + "/" + year
-    for month in os.listdir(year_dir):
+    for month in sorted(os.listdir(year_dir)):
         month_dir = year_dir + "/" + month
         for date in os.listdir(month_dir):
             date_dir = month_dir + "/" + date + "/wind_direction_npy"
+
+            date_cnt = int(date[-2:])
+            #print(date_cnt)
+            
+            if date_cnt == 1:
+                check_file_cnt = date_cnt
+            else:
+                while check_file_cnt+1 != date_cnt:
+                    #print(date_cnt)
+                    #print(check_file_cnt)
+                    for file_i in range(station_time):
+                        tmp_wind_directions.append(np.zeros((210,340,3)))
+                    check_file_cnt = check_file_cnt +1
+                    print("lack file before: ",date)
+                check_file_cnt = date_cnt
+
             for date_file in os.listdir(date_dir):
                 if not date_file.endswith(".npy"):
-                    break
+                    continue
                 time = int(date_file[8:10])
                 if time >11:
                     continue
@@ -382,9 +430,29 @@ for year in os.listdir(station_path):
         month_dir = year_dir + "/" + month
         for date in os.listdir(month_dir):
             date_dir = month_dir + "/" + date
+
+            date_cnt = int(date[-2:])
+            #print(date_cnt)
+            
+            if date_cnt == 1:
+                check_file_cnt = date_cnt
+            else:
+                while check_file_cnt+1 != date_cnt:
+                    #print(date_cnt)
+                    #print(check_file_cnt)
+                    for file_i in range(station_time):
+                        for num in range(len(stations)):
+                            tmp_special_stations.append([0,0,0])
+                        data_special_stations.append(tmp_special_stations)
+                        tmp_special_stations = []
+                    check_file_cnt = check_file_cnt +1
+                    
+                    print("lack file before: ",date)
+                check_file_cnt = date_cnt
+
             for date_file in os.listdir(date_dir):
                 if not date_file.endswith(".txt"):
-                    break
+                    continue
                 time = int(date_file[-6:-4])
                 if time >11:
                     continue
@@ -426,7 +494,8 @@ for year in os.listdir(station_path):
 data_special_stations = np.array(data_special_stations)
 data_special_stations = np.reshape(data_special_stations,(-1,station_time,len(special_station_input_id)*3))
 print("number of videos: ", data_special_stations.shape)
-
+#data_special_stations = np.zeros((275,12,6))
+'''
 if use_sampling:
     print("[INFO] sampling")
     from random import sample
@@ -451,6 +520,74 @@ if use_sampling:
 
     data_special_stations = np.delete(data_special_stations,delete_sample_index,0)
     print("shape of special stations ", data_special_stations.shape)
+
+'''
+print("[INFO] check missing data type")
+if data_satellite.shape[0] ==0:
+    print("missing satellite data, now pending...")
+    data_satellite = np.zeros((data_station_huminity.shape[0],abs(satellite_frame),210,340,3))
+
+if data_weathers.shape[0] == 0:
+    print("missing weather data, now pending...")
+    data_weathers = np.zeros((data_station_huminity.shape[0],1,340,210,3))
+
+
+print("[INFO] train-test split")
+
+(train_weather_X, test_weather_X, train_weather_Y, test_weather_Y, index_train, index_test) = train_test_split(data_weathers, category_labels, range(data_weathers.shape[0]),
+	test_size=0.20, stratify=category_labels, random_state=random_st)
+#for i in range(len(train_weather_Y)):
+#    if np.argmax(train_weather_Y[i]) == 1:
+ #       print("there is positive set in training set")
+  #      break
+print("train_weather shape: ", train_weather_X.shape)
+del data_weathers
+print("finish split weather")
+
+(train_temp_X, test_temp_X, train_temp_Y, test_temp_Y) = train_test_split(data_station_temperature, category_labels,
+	test_size=0.20, stratify=category_labels, random_state=random_st)
+
+del  train_temp_Y
+del  test_temp_Y
+
+del data_station_temperature
+print("finish split temp")
+
+(train_huminity_X, test_huminity_X, train_huminity_Y, test_huminity_Y) = train_test_split(data_station_huminity, category_labels,
+	test_size=0.20, stratify=category_labels, random_state=random_st)
+
+del train_huminity_Y
+del test_huminity_Y
+
+del data_station_huminity
+print("finish split huminity")
+
+(train_wind_X, test_wind_X, train_wind_Y, test_wind_Y) = train_test_split(data_station_wind_direction, category_labels,
+	test_size=0.20, stratify=category_labels, random_state=random_st)
+
+del train_wind_Y
+del test_wind_Y
+
+del data_station_wind_direction
+print("finish split wind")
+
+(train_satellite_X, test_satellite_X, train_satellite_Y, test_satellite_Y) = train_test_split(data_satellite, category_labels,
+	test_size=0.20, stratify=category_labels, random_state=random_st)
+
+del train_satellite_Y
+del test_satellite_Y
+
+del data_satellite
+print("finish split satellite")
+
+(train_special_stations_X, test_special_stations_X, train_special_stations_Y, test_special_stations_Y) = train_test_split(data_special_stations, category_labels,
+	test_size=0.20, stratify=category_labels, random_state=random_st)
+
+del train_special_stations_Y
+del test_special_stations_Y
+
+del data_special_stations
+print("finish split satellite")
 
 
 print("[INFO] load model")
@@ -478,12 +615,12 @@ f_log.write('-------------------------------------------------------------------
 # make predictions on the testing set
 print("[INFO] evaluating network...")
 f_log.write("[INFO] evaluating network...")
-predIdxs = model.predict([data_weathers, 
-data_station_temperature, 
-data_station_huminity, 
-data_station_wind_direction, 
-data_satellite,
-data_special_stations], batch_size=BS)
+predIdxs = model.predict([test_weather_X, 
+test_temp_X, 
+test_huminity_X, 
+test_wind_X, 
+test_satellite_X,
+test_special_stations_X], batch_size=BS)
 
 
 # for each image in the testing set we need to find the index of the
@@ -493,15 +630,15 @@ predIdxs = np.argmax(predIdxs, axis=1)
 #print("test index of true")
 #print(labels[np.where(np.argmax(test_weather_Y, axis=1)==1)])
 #f_log(labels[np.where(np.argmax(test_weather_Y, axis=1)==1)])
-print(classification_report(category_labels.argmax(axis=1), predIdxs,
+print(classification_report(test_weather_Y.argmax(axis=1), predIdxs,
 	target_names=['False', 'True']))
 
-f_log.write(classification_report(category_labels.argmax(axis=1), predIdxs,
+f_log.write(classification_report(test_weather_Y.argmax(axis=1), predIdxs,
 	target_names=['False', 'True']))
 
 # compute the confusion matrix and and use it to derive the raw
 # accuracy, sensitivity, and specificity
-cm = confusion_matrix(category_labels.argmax(axis=1), predIdxs)
+cm = confusion_matrix(test_weather_Y.argmax(axis=1), predIdxs)
 total = sum(sum(cm))
 acc = (cm[0, 0] + cm[1, 1]) / total
 sensitivity = cm[0, 0] / (cm[0, 0] + cm[0, 1])
